@@ -8,15 +8,16 @@ import {
   FlatList
 } from "react-native";
 import { Avatar, ListItem, Icon } from "react-native-elements";
+import firebase from "firebase";
 import db from "../config";
 
-export default class SearchScreen extends Component {
+export default class RideHistoryScreen extends Component {
   constructor(props) {
     super(props);
     this.state = {
       allTransactions: [],
-      lastVisibleTransaction:null,
-      searchText: "",
+      lastVisibleTransaction: null,
+      searchText: ""
     };
   }
   componentDidMount = async () => {
@@ -25,86 +26,56 @@ export default class SearchScreen extends Component {
 
   getTransactions = () => {
     db.collection("transactions")
+      .limit(10)
       .get()
       .then(snapshot => {
-        snapshot.docs.map(doc => {
-          this.setState({
-            allTransactions: [...this.state.allTransactions,doc.data()],
-            lastVisibleTransaction:doc,
+        snapshot.docs.map(doc => { 
+           this.setState({
+            allTransactions: [...this.state.allTransactions, doc.data()],
+            lastVisibleTransaction: doc
           });
         });
       });
   };
 
-  fetchMoreTransactions = async text => {
-    var enteredText = text.toUpperCase().split("");
-    text = text.toUpperCase();
-
-    const{lastVisibleTransaction,allTransactions}=this.state;
-    
-    if (enteredText[0] === "B") {
-      const query=await db
-        .collection("transactions")
-        .where("book_id", "==", text)
-        .startAfter(lastVisibleTransaction)
-        .limit(10)
-        .get();
-          query.docs.map(doc => {
-            this.setState({
-              allTransactions: [...this.state.allTransactions, doc.data()],
-              lastVisibleTransaction:doc,
-            });
-          });
-    } else if (enteredText[0] === "S") {
-      const query=await db
-      .collection("transactions")
-        .where("student_id", "==", text)
-        .startAfter(this.state.lastVisibleTransaction)
-        .limit(10)
-        .get()
-          query.docs.map(doc => {
-            this.setState({
-              allTransactions: [...this.state.allTransactions, doc.data()],
-              lastVisibleTransaction:doc,
-            });
-          });
-    }
-  };
-
-  
-  handleSearch = async text => {
-    var enteredText = text.toUpperCase().split("");
-    text = text.toUpperCase();
+  handleSearch = async bikeId => {
+    bikeId = bikeId.toUpperCase().trim();
     this.setState({
-      allTransactions: [],
+      allTransactions: []
     });
-    if (!text) {
+    if (!bikeId) {
       this.getTransactions();
     }
 
-    if (enteredText[0] === "B") {
-      db.collection("transactions")
-        .where("book_id", "==", text)
-        .get()
-        .then(snapshot => {
-          snapshot.docs.map(doc => {
-            this.setState({
-              allTransactions: [...this.state.allTransactions, doc.data()]
-            });
+    db.collection("transactions")
+      .where("bike_id", "==", bikeId)
+      .get()
+      .then(snapshot => {
+        snapshot.docs.map(doc => {
+          this.setState({
+            allTransactions: [...this.state.allTransactions, doc.data()],
+            lastVisibleTransaction: doc
           });
         });
-    } else if (enteredText[0] === "S") {
-      db.collection("transactions")
-        .where("student_id", "==", text)
-        .get()
-        .then(snapshot => {
-          snapshot.docs.map(doc => {
-            this.setState({
-              allTransactions: [...this.state.allTransactions, doc.data()]
-            });
-          });
-        });
-    }
+      });
+  };
+
+  fetchMoreTransactions = async bikeId => {
+    bikeId = bikeId.toUpperCase().trim();
+
+    const { lastVisibleTransaction, allTransactions } = this.state;
+    const query = await db
+      .collection("transactions")
+      .where("bike_id", "==", bikeId)
+      .startAfter(lastVisibleTransaction)
+      .limit(10)
+      .get();
+    query.docs.map(doc => {
+      this.setState({
+        allTransactions: [...this.state.allTransactions, doc.data()],
+        lastVisibleTransaction: doc
+      });
+    });
   };
 
   renderItem = ({ item, i }) => {
@@ -116,17 +87,17 @@ export default class SearchScreen extends Component {
       .join(" ");
 
     var transactionType =
-      item.transaction_type === "issue" ? "issued" : "returned";
+      item.transaction_type === "rented" ? "rented" : "returned";
     return (
       <View style={{ borderWidth: 1 }}>
         <ListItem key={i} bottomDivider>
-          <Icon type={"antdesign"} name={"book"} size={40} />
+          <Icon type={"ionicon"} name={"bicycle"} size={40} />
           <ListItem.Content>
             <ListItem.Title style={styles.title}>
-              {`${item.book_name} ( ${item.book_id} )`}
+              {`${item.bike_type} ( ${item.bike_id} )`}
             </ListItem.Title>
             <ListItem.Subtitle style={styles.subtitle}>
-              {`This book ${transactionType} by ${item.student_name}`}
+              {`This bike is ${transactionType} by you.`}
             </ListItem.Subtitle>
             <View style={styles.lowerLeftContaiiner}>
               <View style={styles.transactionContainer}>
@@ -135,7 +106,7 @@ export default class SearchScreen extends Component {
                     styles.transactionText,
                     {
                       color:
-                        item.transaction_type === "issue"
+                        item.transaction_type === "rented"
                           ? "#78D304"
                           : "#0364F4"
                     }
@@ -147,12 +118,12 @@ export default class SearchScreen extends Component {
                 <Icon
                   type={"ionicon"}
                   name={
-                    item.transaction_type === "issue"
+                    item.transaction_type === "rented"
                       ? "checkmark-circle-outline"
                       : "arrow-redo-circle-outline"
                   }
                   color={
-                    item.transaction_type === "issue" ? "#78D304" : "#0364F4"
+                    item.transaction_type === "rented" ? "#78D304" : "#0364F4"
                   }
                 />
               </View>
@@ -185,13 +156,43 @@ export default class SearchScreen extends Component {
           </View>
         </View>
         <View style={styles.lowerContainer}>
+
           <FlatList
             data={allTransactions}
             renderItem={this.renderItem}
             keyExtractor={(item, index) => index.toString()}
-            onEndReached={()=> this.fetchMoreTransactions(searchText)}
+            onEndReached={() => 
+              this.fetchMoreTransactions(searchText)}
             onEndReachedThreshold={0.7}
-          />
+          /> 
+
+           {/* <FlatList
+            data=allTransactions
+            renderItem=this.renderItem
+            keyExtractor={(item, index) => index.toString()}
+            onEndReached={() => 
+              this.fetchMoreTransactions(searchText)}
+            onEndReachedThreshold={0.7}
+          /> */}
+
+           {/* <FlatList
+            data:{allTransactions}
+            renderItem:{this.renderItem}
+            keyExtractor:{(item, index) => index.toString()}
+            onEndReached:{() => 
+              this.fetchMoreTransactions(searchText)}
+            onEndReachedThreshold={0.7}
+          /> */}
+
+           {/* <FlatList
+            data={"allTransactions"}
+            renderItem={"this.renderItem"}
+            keyExtractor={(item, index) => index.toString()}
+            onEndReached=
+            {this.fetchMoreTransactions(searchText)}
+            onEndReachedThreshold={0.7}
+          /> */}
+
         </View>
       </View>
     );
@@ -201,7 +202,7 @@ export default class SearchScreen extends Component {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#5653D4"
+    backgroundColor: "#D0E6F0"
   },
   upperContainer: {
     flex: 0.2,
@@ -212,25 +213,25 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderRadius: 10,
     flexDirection: "row",
-    backgroundColor: "#9DFD24",
-    borderColor: "#FFFFFF"
+    backgroundColor: "#4C5D70",
+    borderColor: "#4C5D70"
   },
   textinput: {
     width: "57%",
     height: 50,
     padding: 10,
-    borderColor: "#FFFFFF",
+    borderColor: "#4C5D70",
     borderRadius: 10,
     borderWidth: 3,
     fontSize: 18,
-    backgroundColor: "#5653D4",
+    backgroundColor: "#F88379",
     fontFamily: "Rajdhani_600SemiBold",
     color: "#FFFFFF"
   },
   scanbutton: {
     width: 100,
     height: 50,
-    backgroundColor: "#9DFD24",
+    backgroundColor: "#FBE5C0",
     borderTopRightRadius: 10,
     borderBottomRightRadius: 10,
     justifyContent: "center",
@@ -238,12 +239,12 @@ const styles = StyleSheet.create({
   },
   scanbuttonText: {
     fontSize: 24,
-    color: "#0A0101",
+    color: "#4C5D70",
     fontFamily: "Rajdhani_600SemiBold"
   },
   lowerContainer: {
     flex: 0.8,
-    backgroundColor: "#FFFFFF"
+    backgroundColor: "#FBE5C0"
   },
   title: {
     fontSize: 20,
@@ -264,7 +265,6 @@ const styles = StyleSheet.create({
   },
   transactionText: {
     fontSize: 20,
-
     fontFamily: "Rajdhani_600SemiBold"
   },
   date: {
